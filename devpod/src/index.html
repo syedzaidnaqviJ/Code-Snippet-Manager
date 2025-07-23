@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevPod - AI Snippet Manager (Standalone Test)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+
+  <h1 class="text-3xl font-bold mb-6">DevPod - AI Snippet Manager (Standalone)</h1>
+
+  <div class="bg-white p-4 rounded shadow max-w-md w-full mb-6">
+    <h2 class="text-xl font-semibold mb-2">Add Snippet</h2>
+    <input id="language" type="text" placeholder="Language (e.g., JavaScript)" class="border p-2 rounded w-full mb-2" />
+    <textarea id="code" placeholder="Your code here..." class="border p-2 rounded w-full mb-2 h-40"></textarea>
+    <button id="addBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded w-full">
+      Add Snippet
+    </button>
+  </div>
+
+  <div class="bg-white p-4 rounded shadow max-w-2xl w-full">
+    <h2 class="text-xl font-semibold mb-4">Your Snippets</h2>
+    <div id="snippetsContainer" class="space-y-4"></div>
+  </div>
+
+  <script>
+    const addBtn = document.getElementById('addBtn');
+    const codeInput = document.getElementById('code');
+    const languageInput = document.getElementById('language');
+    const snippetsContainer = document.getElementById('snippetsContainer');
+
+    const loadSnippets = () => {
+      const snippets = JSON.parse(localStorage.getItem('snippets') || '[]');
+      snippetsContainer.innerHTML = '';
+      snippets.forEach((snippet, index) => {
+        const snippetDiv = document.createElement('div');
+        snippetDiv.className = 'bg-gray-50 p-3 rounded shadow';
+        snippetDiv.innerHTML = `
+          <pre class="bg-gray-900 text-green-300 p-2 rounded overflow-x-auto mb-2">${snippet.code}</pre>
+          <p class="text-sm text-gray-600">Language: ${snippet.language}</p>
+          <p class="text-sm text-gray-600">Description: ${snippet.description || 'N/A'}</p>
+          <p class="text-sm text-gray-600">Tags: ${snippet.tags ? snippet.tags.join(', ') : 'N/A'}</p>
+          <button onclick="deleteSnippet(${index})"
+                  class="mt-2 bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded">
+            Delete
+          </button>
+        `;
+        snippetsContainer.appendChild(snippetDiv);
+      });
+    };
+
+    const deleteSnippet = (index) => {
+      const snippets = JSON.parse(localStorage.getItem('snippets') || '[]');
+      snippets.splice(index, 1);
+      localStorage.setItem('snippets', JSON.stringify(snippets));
+      loadSnippets();
+    };
+
+    addBtn.addEventListener('click', async () => {
+      const code = codeInput.value.trim();
+      const language = languageInput.value.trim();
+      if (!code || !language) {
+        alert('Please provide both language and code.');
+        return;
+      }
+
+      // Optional: Use OpenAI for description/tag generation
+      let description = 'Sample generated description';
+      let tags = ['sample', 'tag', 'demo'];
+
+      try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions',
+          {
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: "system", content: "Generate a one-line description and 5 comma-separated tags for code snippets." },
+              { role: "user", content: `Language: ${language}\nCode: ${code}` }
+            ]
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer YOUR_OPENAI_API_KEY`
+            }
+          }
+        );
+
+        const content = response.data.choices[0].message.content;
+        const lines = content.split('\n');
+        description = lines[0].replace("Description:", "").trim();
+        tags = lines[1] ? lines[1].replace("Tags:", "").trim().split(',').map(t => t.trim()) : [];
+      } catch (error) {
+        console.error(error);
+        alert('OpenAI API error, using fallback tags/description.');
+      }
+
+      const snippet = { code, language, description, tags };
+      const snippets = JSON.parse(localStorage.getItem('snippets') || '[]');
+      snippets.push(snippet);
+      localStorage.setItem('snippets', JSON.stringify(snippets));
+
+      codeInput.value = '';
+      languageInput.value = '';
+      loadSnippets();
+    });
+
+    loadSnippets();
+  </script>
+
+</body>
+
+</html>
